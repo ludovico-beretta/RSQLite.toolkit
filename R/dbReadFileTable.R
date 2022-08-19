@@ -1,4 +1,22 @@
-dbReadFileTable <- function(input.file, schema.file, header=FALSE,
+#' dbReadFileTable
+#'
+#' @param input.file
+#' @param schema.file
+#' @param header.nlines
+#' @param dbcon
+#' @param table.name
+#' @param drop.table
+#' @param auto.pk
+#' @param build.pk
+#' @param chunk.size
+#' @param constant.values
+#' @param ...
+#'
+#' @return
+#' @export
+#'
+#' @examples
+dbReadFileTable <- function(input.file, schema.file, header.nlines=0,
                             dbcon, table.name, drop.table=FALSE,
                             auto.pk=FALSE, build.pk=FALSE,
                             chunk.size=10000, constant.values=NULL, ...) {
@@ -14,7 +32,7 @@ dbReadFileTable <- function(input.file, schema.file, header=FALSE,
 
 
     ## read schema ................................
-    df.scm <- read.table(file=schema.file, header=TRUE, sep=",",
+    df.scm <- utils::read.table(file=schema.file, header=TRUE, sep=",",
                          skip=0,quote="",comment.char="", row.names=NULL,
                          colClasses=rep("character",times=4),
                          col.names=c("VARNAME","SQLTYPE","RTYPE","PK"),
@@ -28,7 +46,7 @@ dbReadFileTable <- function(input.file, schema.file, header=FALSE,
     if (drop.table) {
 
         sql.def <- paste("DROP TABLE IF EXISTS ", table.name, ";", sep="")
-        dbExecute(dbcon, sql.def)
+        RSQLite::dbExecute(dbcon, sql.def)
     }
 
 
@@ -67,7 +85,7 @@ dbReadFileTable <- function(input.file, schema.file, header=FALSE,
     sql.tail <- ");"
     sql.def <- paste(sql.head, sql.body, sql.tail, sep=" ")
 
-    dbExecute(dbcon, sql.def)
+    RSQLite::dbExecute(dbcon, sql.def)
 
 
 
@@ -88,8 +106,8 @@ dbReadFileTable <- function(input.file, schema.file, header=FALSE,
     ## read data ..................................
     fcon <- file(input.file, "r", blocking = FALSE)
 
-    if (header) {
-        scan(file=fcon, what=character(), nlines=1)
+    if (header.nlines > 0) {
+        scan(file=fcon, what=character(), nlines=header.nlines)
     }
 
     nread <- 0
@@ -118,7 +136,7 @@ dbReadFileTable <- function(input.file, schema.file, header=FALSE,
             dfbuffer <- cbind(dfbuffer,NA)
         }
 
-        dbWriteTable(dbcon, table.name, dfbuffer, row.names=FALSE, append=TRUE)
+        RSQLite::dbWriteTable(dbcon, table.name, dfbuffer, row.names=FALSE, append=TRUE)
         nread <- nread+chunk.size
 
     }
@@ -128,7 +146,7 @@ dbReadFileTable <- function(input.file, schema.file, header=FALSE,
     ## Indexing -------------------------------
     if (drop.table && length(df.scm[which(df.scm$PK=="Y"),"VARNAME"])>0 && build.pk) {
         cnames <- df.scm[which(df.scm$PK=="Y"),"VARNAME"]
-        dbExecute(dbcon, paste(
+        RSQLite::dbExecute(dbcon, paste(
             "CREATE UNIQUE INDEX ", paste(table.name,"_PK",sep=""),
             "ON ", table.name," (", paste(cnames, collapse=", "),
             ");", sep=" ")
